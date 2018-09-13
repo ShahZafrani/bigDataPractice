@@ -4,6 +4,8 @@
 # Resources:
 #   - http://saedsayad.com/decision_tree.htm
 #      - Used for help understanding entropy split and information gain
+#   - http://www.learnbymarketing.com/481/decision-tree-flavors-gini-info-gain/
+#      - Used for understanding the difference between using gini-index and using entropy
 #
 
 import numpy as np
@@ -26,6 +28,21 @@ def entropy(dataSplit): # formatted as an array of counts: [5,9]
         entropy += -1 * (prob * math.log(prob, 2))
     return entropy
 
+def attrEntropy(labeledData, featCol):
+    labeledData = np.array(labeledData)
+    dataSize = len(labeledData[:,featCol])
+    uniqueAttrs = set(labeledData[:, featCol])
+    attrEntropySplit = {}
+    attrDataSplit = {}
+    combinedFeatureEntropy = 0
+    for u in uniqueAttrs:
+        uOnly = labeledData[labeledData[:, featCol] == u]
+        attrDataSplit[u] = countSplit(uOnly)
+        attrEntropySplit[u] =  entropy(attrDataSplit[u])
+        combinedFeatureEntropy += float(attrEntropySplit[u]) * (float(sum(attrDataSplit[u])) / dataSize)
+    return attrEntropySplit, combinedFeatureEntropy
+
+
 def countSplit(labeledData): # this is assuming the labels are in the last column
     # Entropy : summation(C[], i): -1 * probability(C[i]) * log2(probability(C[i]))
     labeledData = np.array(labeledData)
@@ -46,17 +63,86 @@ def performSplit(labeledData, featCol, featVal):
             notMatchBranch.append(d)
     return matchBranch, notMatchBranch
 
-print("starting entropy of training set: \n\t" + str(entropy(countSplit(training))))
-print("if split on col1=\"vhigh\":")
-vhigh, nvhigh = performSplit(training, 0, "vhigh")
-print("vhigh:\n\t" + str(entropy(countSplit(vhigh))))
-print("not vhigh:\n\t" + str(entropy(countSplit(nvhigh))))
+# print("starting entropy of training set: \n\t" + str(entropy(countSplit(training))))
+# print("if split on col1=\"vhigh\":")
+# vhigh, nvhigh = performSplit(training, 0, "vhigh")
+# print("vhigh:\n\t" + str(entropy(countSplit(vhigh))))
+# print("not vhigh:\n\t" + str(entropy(countSplit(nvhigh))))
+# colEntropy, ccolEntropy = attrEntropy(training, 0)
+# for k in colEntropy.keys():
+#     print(colEntropy[k])
+#
+# print("combined entropy" + str(ccolEntropy))
+#
+# print("infoGain: " +  str(entropy(countSplit(training)) - ccolEntropy))
+def guessFromMajority(data):
+    uniqClasses = data[:,-1]
+    bestClass = ""
+    highestCount = 0
+    for u in uniqClasses:
+        uCount = sum(data[:,-1]==u)
+        if uCount > highestCount:
+            bestClass = u
+            highestCount = uCount
+    return bestClass
 
 
+def buildTree(tree, data, currDepth):
+    if(currDepth > 50):
+        return guessFromMajority(np.array(data))
+    currDepth += 1
+    currentEntropy = entropy(countSplit(data))
+    bestInfoGain = 0
+    tree["splitCol"] = 0
+    tree["splitVal"] = ""
+    lowestSplit = 1
+    for featCol in range(0, len(data[0]) - 1):
+        featAttrEntropy, combFeatEntropy = attrEntropy(data, featCol)
+        featInfoGain = currentEntropy - combFeatEntropy
+        if bestInfoGain < featInfoGain:
+            bestInfoGain = featInfoGain
+            tree["splitCol"] = featCol
+            for k in featAttrEntropy.keys():
+                if featAttrEntropy[k] < lowestSplit:
+                    tree["splitVal"] = k
+    matchData, noMatchData = performSplit(data, tree["splitCol"], tree["splitVal"])
+    if (len(matchData) > 0 and entropy(countSplit(matchData)) == 0):
+        tree["true"] = np.array(matchData)[0,-1]
+    elif (len(matchData) > 0):
+        tree["true"] = buildTree({}, matchData, currDepth)
+    if (len(noMatchData) > 0 and entropy(countSplit(noMatchData)) == 0):
+        tree["false"] = np.array(noMatchData)[0,-1]
+    elif (len(noMatchData) > 0):
+        tree["false"] = buildTree({}, noMatchData, currDepth)
 
+    return tree
 
+def predictFromTree(tree, dataSample): # takes one row of data at a time
+    if isinstance(tree, str): # is it a leaf?
+        return tree
+    if (dataSample[tree["splitCol"]] == tree["splitVal"]):
+        return predictFromTree(tree["true"], dataSample)
+    else:
+        return predictFromTree(tree["false"], dataSample)
 
+def evaluateTree(tree, testData):
+    predictions = []
+    for d in testData:
+        predictions.append(predictFromTree(tree, d))
+    return accuracy(predictions, testData)
 
+#  node: {
+#     root: {
+#         splitCol: num,
+#         splitVal: any,
+#         trueNode: node,
+#         falseNode: node
+#     }
+# }
+# output tree: json.dumps(your_data, ensure_ascii=False)
+
+dTree = buildTree({}, training, 0)
+print(evaluateTree(dTree, test))
 
 
 
