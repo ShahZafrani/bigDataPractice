@@ -1,15 +1,13 @@
 # python 3.6
 # decisionTree.py
 
-# Resources:
-#   - http://saedsayad.com/decision_tree.htm
-#      - Used for help understanding entropy split and information gain
-#   - http://www.learnbymarketing.com/481/decision-tree-flavors-gini-info-gain/
-#      - Used for understanding the difference between using gini-index and using entropy
-#
-
 import numpy as np
 import math
+import json
+
+# Hyper Params
+MAX_DEPTH = 2
+
 
 training = np.genfromtxt('car.training.csv', dtype=None, encoding="utf-8", delimiter=',')
 print("training shape: {}, {}".format(training.shape[0], training.shape[1]))
@@ -57,38 +55,27 @@ def performSplit(labeledData, featCol, featVal):
     matchBranch = []
     notMatchBranch = []
     for d in labeledData:
-        if d[featCol] == featVal:
+        dval = d[featCol]
+        if (dval == featVal):
             matchBranch.append(d)
         else:
             notMatchBranch.append(d)
     return matchBranch, notMatchBranch
 
-# print("starting entropy of training set: \n\t" + str(entropy(countSplit(training))))
-# print("if split on col1=\"vhigh\":")
-# vhigh, nvhigh = performSplit(training, 0, "vhigh")
-# print("vhigh:\n\t" + str(entropy(countSplit(vhigh))))
-# print("not vhigh:\n\t" + str(entropy(countSplit(nvhigh))))
-# colEntropy, ccolEntropy = attrEntropy(training, 0)
-# for k in colEntropy.keys():
-#     print(colEntropy[k])
-#
-# print("combined entropy" + str(ccolEntropy))
-#
-# print("infoGain: " +  str(entropy(countSplit(training)) - ccolEntropy))
 def guessFromMajority(data):
     uniqClasses = data[:,-1]
     bestClass = ""
     highestCount = 0
     for u in uniqClasses:
         uCount = sum(data[:,-1]==u)
-        if uCount > highestCount:
+        if uCount >= highestCount:
             bestClass = u
             highestCount = uCount
     return bestClass
 
 
 def buildTree(tree, data, currDepth):
-    if(currDepth > 50):
+    if(currDepth > MAX_DEPTH):
         return guessFromMajority(np.array(data))
     currDepth += 1
     currentEntropy = entropy(countSplit(data))
@@ -105,6 +92,7 @@ def buildTree(tree, data, currDepth):
             for k in featAttrEntropy.keys():
                 if featAttrEntropy[k] < lowestSplit:
                     tree["splitVal"] = k
+                    lowestSplit = featAttrEntropy[k]
     matchData, noMatchData = performSplit(data, tree["splitCol"], tree["splitVal"])
     if (len(matchData) > 0 and entropy(countSplit(matchData)) == 0):
         tree["true"] = np.array(matchData)[0,-1]
@@ -132,17 +120,18 @@ def evaluateTree(tree, testData):
     return accuracy(predictions, testData)
 
 #  node: {
-#     root: {
 #         splitCol: num,
 #         splitVal: any,
 #         trueNode: node,
 #         falseNode: node
-#     }
-# }
-# output tree: json.dumps(your_data, ensure_ascii=False)
-
+#  }
+print("building decision tree with maximum depth of {}".format(MAX_DEPTH))
 dTree = buildTree({}, training, 0)
-print(evaluateTree(dTree, test))
+print("evaluating decision tree with test data. \n \t accuracy: {}%".format(evaluateTree(dTree, test) * 100))
+
+# Uncomment below to output tree to file as a json
+# with open('tree.json', 'w') as fp:
+#   json.dump(dTree, fp)
 
 
 
