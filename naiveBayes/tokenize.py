@@ -1,3 +1,6 @@
+import findspark
+findspark.init("/opt/spark-2.3.1/")
+
 from pyspark.ml.feature import HashingTF, IDF, Tokenizer
 
 sentenceData = spark.createDataFrame([
